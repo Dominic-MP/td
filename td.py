@@ -1,4 +1,7 @@
-import requests, json, os, argparse
+import requests, json, os, argparse, sys, time
+
+reload(sys)
+sys.setdefaultencoding("UTF8")
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--offset', dest='offset', metavar='OFFSET',
@@ -35,7 +38,7 @@ while month < 13 :
 	td = '/Users/Dominic/GitHub/Dominic-MP.github.io/td' + str(month) + '-' + str(day) + '.html'
 	
 	geturl = 'https://catalog.archives.gov/api/v1/?resultTypes=item,fileUnit&description.item.productionDateArray.proposableQualifiableDate.month=' + str(month) + '&description.item.productionDateArray.proposableQualifiableDate.day=' + str(day) + '&resultFields=description.item.productionDateArray.proposableQualifiableDate.day,description.item.productionDateArray.proposableQualifiableDate.month,description.item.productionDateArray.proposableQualifiableDate.year,description.item.title,naId,objects&rows=1'
-	
+
 	y = requests.get(geturl)
 	parsed = json.loads(y.text)
 	
@@ -53,8 +56,18 @@ while month < 13 :
 			writefile.close()
 
 		url = 'https://catalog.archives.gov/api/v1/?resultTypes=item,fileUnit&description.item.productionDateArray.proposableQualifiableDate.month=' + str(month) + '&description.item.productionDateArray.proposableQualifiableDate.day=' + str(day) + '&resultFields=description.item.productionDateArray.proposableQualifiableDate.day,description.item.productionDateArray.proposableQualifiableDate.month,description.item.productionDateArray.proposableQualifiableDate.year,description.item.title,naId,objects&rows=1&sort=naId asc&offset=' + str(offset)
-		z = requests.get(url)
-		parse = json.loads(z.text)
+						
+		try :	
+			z = requests.get(url)
+			parse = json.loads(z.text)
+		except requests.exceptions.ConnectionError :
+			print requests.get(url).status_code
+			print requests.get(url).headers
+		except ValueError :
+			print 'Received 500 error! Sleeping...'
+			time.sleep(1205)
+			z = requests.get(url)
+			parse = json.loads(z.text)
 		
 		print '\n----\n' + str(offset)
 		print url
@@ -70,11 +83,18 @@ while month < 13 :
 			fileurl = parse['opaResponse']['results']['result'][0]['objects']['object']['thumbnail']['@url'].replace('govOpaAPI', 'gov/OpaAPI')
 #			filename = parse['opaResponse']['results']['result'][0]['objects']['object']['file']['@name']
 		except TypeError :
-			fileurl = parse['opaResponse']['results']['result'][0]['objects']['object'][0]['thumbnail']['@url'].replace('govOpaAPI', 'gov/OpaAPI')
+			try:
+				fileurl = parse['opaResponse']['results']['result'][0]['objects']['object'][0]['thumbnail']['@url'].replace('govOpaAPI', 'gov/OpaAPI')
 #			filename = parse['opaResponse']['results']['result'][0]['objects']['object'][0]['file']['@name']
-			print fileurl
+				print fileurl
+			
+			except KeyError :
+				print 'No thumbnail found!\n----'
+				offset = offset + 1
+				continue
+				
 		except KeyError :
-			print 'No thumbnail found!'
+			print 'No thumbnail found!\n----'
 			offset = offset + 1
 			continue
 		
@@ -88,5 +108,6 @@ while month < 13 :
 		print '----'
 		offset = offset + 1
 	
+	writefile = open(td, 'a')
 	writefile.write( ('</table>\n</body>\n</html>') )
 	writefile.close()
